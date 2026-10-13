@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: taskboard-db
+    environment:
+      POSTGRES_USER: taskboard
+      POSTGRES_PASSWORD: taskboard
+      POSTGRES_DB: taskboard
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+    # Tests if Postgres is fully ready to accept client connections
+      test: ["CMD-SHELL", "pg_isready -U taskboard -d taskboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../app/backend
+      dockerfile: Dockerfile
+    container_name: taskboard-backend
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=taskboard
+      - DB_USER=taskboard
+      - DB_PASSWORD=taskboard
+      - APP_VERSION=v1.0.0
+      - ENVIRONMENT=local
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        # Ensures backend only starts after postgres healthcheck passes successfully
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ../app/frontend
+      dockerfile: Dockerfile
+    container_name: taskboard-frontend
+    environment:
+      - BACKEND_URL=http://backend:8000
+    ports:
+      - "3001:8080"
+    depends_on:
+      backend:
+        # Ensures frontend only starts after backend is healthy
+        condition: service_healthy
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: taskboard-sonar
+    ports:
+      - "9000:9000"
+    profiles:
+      # Keeps SonarQube offline by default unless explicitly requested via --profile sonar
+      - sonar
+
+volumes:
+  postgres_data:

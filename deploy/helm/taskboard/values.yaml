@@ -1,0 +1,21 @@
+replicaCount: 1
+
+backend:
+  image:
+    repository: taskboard-backend
+    tag: local
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+postgresql:
+  image:
+    repository: postgres
+    tag: 17-alpine
+  storage:
+    size: 1Gi
