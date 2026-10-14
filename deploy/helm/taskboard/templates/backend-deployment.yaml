@@ -12,15 +12,28 @@ spec:
       labels:
         app: backend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       initContainers:
         - name: wait-for-db
           image: postgres:17-alpine
-          command: ['sh', '-c', 'until pg_isready -h db -p 5432 -U taskboard; do echo waiting for db; sleep 2; done']
+          command: ['sh', '-c', 'until pg_isready -h db -p 5432 -U taskboard; do sleep 2; done']
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           imagePullPolicy: "{{ .Values.backend.image.pullPolicy }}"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
+            - containerPort: 8080
+              name: unused
             - containerPort: 8000
           env:
             - name: DB_HOST
@@ -47,3 +60,9 @@ spec:
               path: /api/health
               port: 8000
             initialDelaySeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

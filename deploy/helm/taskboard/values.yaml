@@ -1,5 +1,12 @@
 replicaCount: 1
 
+
+frontend:
+  enabled: true
+  image: taskboard-frontend:local
+  pullPolicy: Never
+  backendUrl: "http://backend:8000"
+
 backend:
   image:
     repository: taskboard-backend
