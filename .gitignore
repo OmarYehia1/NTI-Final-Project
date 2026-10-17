@@ -1,0 +1,6 @@
+
+# Terraform binaries and state files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
