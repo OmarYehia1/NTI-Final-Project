@@ -1,0 +1,65 @@
+name: CD - Terraform & Helm Validation
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'infra/**'
+      - 'deploy/**'
+      - '.github/workflows/infra-cd.yml'
+  workflow_dispatch:
+    inputs:
+      apply_terraform:
+        description: 'Run terraform apply on prod environment'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+
+jobs:
+  validate-infra-and-helm:
+    name: Validate Terraform & Helm Charts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format & Validate (Prod)
+        working-directory: infra/environments/prod
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint & Template Helm Chart
+        run: |
+          helm lint ./deploy/helm/taskboard -f ./deploy/helm/taskboard/values-prod.yaml
+          helm template taskboard ./deploy/helm/taskboard -f ./deploy/helm/taskboard/values-prod.yaml > /dev/null
+
+      - name: Configure AWS Credentials (for Plan/Apply)
+        if: github.event_name == 'workflow_dispatch'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Plan & Apply (Manual Trigger)
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_terraform == 'true'
+        working-directory: infra/environments/prod
+        run: |
+          terraform init
+          terraform apply -auto-approve

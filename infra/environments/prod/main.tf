@@ -1,3 +1,17 @@
+terraform {
+  required_version = ">= 1.5.0"
+
+  backend "s3" {
+    bucket = "taskboard-tf-state-679965617139"
+    key    = "prod/terraform.tfstate"
+    region = "eu-west-1"
+  }
+}
+
+provider "aws" {
+  region = "eu-west-1"
+}
+
 module "network" {
   source      = "../../bootstrap/modules/network"
   vpc_cidr    = "10.0.0.0/16"
