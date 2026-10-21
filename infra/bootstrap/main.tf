@@ -136,6 +136,10 @@ resource "aws_s3_bucket_versioning" "tf_state_logs_versioning" {
     status = "Enabled"
   }
 }
+import {
+  to = module.ecr.aws_ecr_repository.backend
+  id = "taskboard-backend"
+}
 
 module "ecr" {
   source          = "./modules/ecr"
