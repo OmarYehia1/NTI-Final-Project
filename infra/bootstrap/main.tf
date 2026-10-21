@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.10"
+  required_version = ">= 1.5.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -58,7 +58,7 @@ resource "aws_s3_bucket_public_access_block" "tf_state" {
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1", "1c58a3a8518e8759bf075b76b750d4f2df264fcd"]
 }
 
 # 3. IAM Role for GitHub Infra Workflow
@@ -79,11 +79,7 @@ resource "aws_iam_role" "github_infra" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = [
-              "repo:${var.github_repo}:pull_request",
-              "repo:${var.github_repo}:ref:refs/heads/main",
-              "repo:${var.github_repo}:environment:infrastructure"
-            ]
+            "token.actions.githubusercontent.com:sub" = "repo:OmarYehia1/NTI-Final-Project:*"
           }
         }
       }
@@ -97,7 +93,7 @@ resource "aws_iam_role_policy_attachment" "github_infra_admin" {
 }
 
 output "state_bucket" {
-  value = aws_s3_bucket.tf_state.bucket
+  value = aws_s3_bucket.tf_state.id
 }
 
 output "infra_role_arn" {
