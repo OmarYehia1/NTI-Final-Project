@@ -136,6 +136,11 @@ resource "aws_s3_bucket_versioning" "tf_state_logs_versioning" {
     status = "Enabled"
   }
 }
+
+module "ecr" {
+  source          = "./modules/ecr"
+  repository_name = "taskboard-backend"
+}
 output "state_bucket" {
   value = aws_s3_bucket.tf_state.id
 }
