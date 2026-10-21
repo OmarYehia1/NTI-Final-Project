@@ -25,6 +25,17 @@ variable "github_repo" {
 
 data "aws_caller_identity" "current" {}
 
+#tfsec:ignore:aws-s3-enable-bucket-logging this is the log bucket itself
+resource "aws_s3_bucket" "tf_state_logs" {
+  bucket = "taskboard-tf-state-logs-${data.aws_caller_identity.current.account_id}"
+}
+
+resource "aws_s3_bucket_logging" "tf_state_logging" {
+  bucket        = aws_s3_bucket.tf_state.id
+  target_bucket = aws_s3_bucket.tf_state_logs.id
+  target_prefix = "log/"
+}
+
 # 1. S3 Bucket for Terraform State
 resource "aws_s3_bucket" "tf_state" {
   bucket = "taskboard-tf-state-${data.aws_caller_identity.current.account_id}"
@@ -37,11 +48,17 @@ resource "aws_s3_bucket_versioning" "tf_state" {
   }
 }
 
+resource "aws_kms_key" "tf_state_key" {
+  description         = "KMS key for Terraform state bucket"
+  enable_key_rotation = true
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state" {
   bucket = aws_s3_bucket.tf_state.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.tf_state_key.arn
+      sse_algorithm     = "aws:kms"
     }
   }
 }
@@ -92,6 +109,33 @@ resource "aws_iam_role_policy_attachment" "github_infra_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
+# Block Public Access for the log bucket
+resource "aws_s3_bucket_public_access_block" "tf_state_logs_public_access" {
+  bucket                  = aws_s3_bucket.tf_state_logs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable KMS Encryption for the log bucket (reusing your existing key)
+resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state_logs_encryption" {
+  bucket = aws_s3_bucket.tf_state_logs.id
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = aws_kms_key.tf_state_key.arn
+      sse_algorithm     = "aws:kms"
+    }
+  }
+}
+
+# Enable Versioning for the log bucket
+resource "aws_s3_bucket_versioning" "tf_state_logs_versioning" {
+  bucket = aws_s3_bucket.tf_state_logs.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
 output "state_bucket" {
   value = aws_s3_bucket.tf_state.id
 }
