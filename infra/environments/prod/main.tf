@@ -24,6 +24,23 @@ module "eks" {
   vpc_id       = module.network.vpc_id
   subnet_ids   = module.network.private_subnet_ids
 }
+resource "aws_eks_access_entry" "local_admin" {
+  cluster_name  = "taskboard-prod"
+  principal_arn = "arn:aws:iam::679965617139:user/omar"
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "local_admin_policy" {
+  cluster_name  = "taskboard-prod"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  principal_arn = "arn:aws:iam::679965617139:user/omar"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.local_admin]
+}
 
 module "ecr" {
   source          = "../../bootstrap/modules/ecr"
