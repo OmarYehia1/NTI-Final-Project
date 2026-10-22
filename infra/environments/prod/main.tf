@@ -35,3 +35,8 @@ module "alb" {
   vpc_id     = module.network.vpc_id
   subnet_ids = module.network.public_subnet_ids
 }
+
+import {
+  to = module.ecr.aws_ecr_repository.backend
+  id = "taskboard-backend"
+}
