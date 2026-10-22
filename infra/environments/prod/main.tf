@@ -28,6 +28,7 @@ resource "aws_eks_access_entry" "local_admin" {
   cluster_name  = "taskboard-prod"
   principal_arn = "arn:aws:iam::679965617139:user/omar"
   type          = "STANDARD"
+  depends_on    = [module.eks]
 }
 
 resource "aws_eks_access_policy_association" "local_admin_policy" {
