@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: taskboard-backend
 spec:
-  replicas: 1
+  replicas: {{ .Values.backend.replicaCount }}
   selector:
     matchLabels:
       app: backend
