@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+MODE="${1:-helm}"
 PROFILE=taskboard
 IMAGE=taskboard-backend:local
 NAMESPACE=taskboard
@@ -11,16 +12,18 @@ if ! minikube status -p "$PROFILE" >/dev/null 2>&1; then
   minikube start -p "$PROFILE" --cpus 2 --memory 4096
 fi
 
-# 2. Build the backend image on your laptop
+# 2. Build the backend image and copy it into minikube
 docker build --pull -t "$IMAGE" "$ROOT/app/backend"
-
-# 3. Copy the image into minikube
 minikube -p "$PROFILE" image load "$IMAGE"
 
-# 4. Install the Helm chart with the local values
-helm upgrade --install taskboard "$ROOT/deploy/helm/taskboard" \
-  --kube-context "$PROFILE" -n "$NAMESPACE" --create-namespace \
-  -f "$ROOT/deploy/helm/taskboard/values-local.yaml" --wait
-
-# 5. Run the chart's test
-helm test taskboard --kube-context "$PROFILE" -n "$NAMESPACE" --logs
+if [ "$MODE" = "argocd" ]; then
+  # 3a. Argo CD mode: Argo CD deploys the chart from Git
+  kubectl config use-context "$PROFILE"
+  "$ROOT/gitops/install-argocd.sh" "$ROOT/gitops/applications/taskboard-local.yaml"
+else
+  # 3b. Normal mode: install the chart directly
+  helm upgrade --install taskboard "$ROOT/deploy/helm/taskboard" \
+    --kube-context "$PROFILE" -n "$NAMESPACE" --create-namespace \
+    -f "$ROOT/deploy/helm/taskboard/values-local.yaml" --wait
+  helm test taskboard --kube-context "$PROFILE" -n "$NAMESPACE" --logs
+fi
