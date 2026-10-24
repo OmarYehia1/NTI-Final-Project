@@ -1,0 +1,5 @@
+backend:
+  image:
+    repository: taskboard-backend
+    tag: local
+    pullPolicy: Never
