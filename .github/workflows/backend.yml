@@ -1,0 +1,83 @@
+name: Backend
+
+on:
+  pull_request:
+    paths:
+      - "app/backend/**"
+      - ".github/actions/**"
+      - ".github/workflows/backend.yml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  id-token: write
+
+jobs:
+  # Job 1: check the code
+  lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install pytest-cov
+      - name: Lint
+        run: flake8 .
+      - name: Tests and coverage
+        run: pytest --cov=taskboard --cov-report=xml
+
+  # Job 2: scan, build, scan again, push
+  build-and-push:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pre-build scan
+        uses: ./.github/actions/pre-build-scan
+        with:
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
+          sonar-host-url: ${{ vars.SONAR_HOST_URL }}
+          sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
+          sonar-project-key: omaryehia1_taskboard-backend
+          sonar-project-dir: app/backend
+          report-name: backend-pre-build-report
+
+      - name: Build image
+        run: docker build --pull -t taskboard-backend:ci app/backend
+
+      - name: Post-build scan
+        uses: ./.github/actions/post-build-scan
+        with:
+          scan-type: image
+          target: taskboard-backend:ci
+          report-name: backend-post-build-report
+
+      # Only on main: log in to AWS and push
+      - name: Log in to AWS (OIDC)
+        if: github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to ECR
+        if: github.ref == 'refs/heads/main'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker tag taskboard-backend:ci ${{ vars.ECR_REPOSITORY_URL }}:sha-${{ github.sha }}
+          docker push ${{ vars.ECR_REPOSITORY_URL }}:sha-${{ github.sha }}
