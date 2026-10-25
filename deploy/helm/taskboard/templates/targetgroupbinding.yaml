@@ -1,0 +1,12 @@
+{{- if .Values.targetGroupBinding.enabled }}
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: backend
+spec:
+  serviceRef:
+    name: backend
+    port: 8000
+  targetGroupARN: {{ .Values.targetGroupBinding.targetGroupARN | quote }}
+  targetType: ip
+{{- end }}

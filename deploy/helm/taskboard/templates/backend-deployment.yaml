@@ -47,7 +47,10 @@ spec:
             - name: DB_USER
               value: "taskboard"
             - name: DB_PASSWORD
-              value: "taskboardpassword"
+              valueFrom:
+                secretKeyRef:
+                  name: taskboard-secret
+                  key: DB_PASSWORD
             - name: APP_VERSION
               value: "v1.0.0"
             - name: ENVIRONMENT

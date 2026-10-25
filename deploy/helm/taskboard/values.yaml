@@ -1,6 +1,5 @@
-replicaCount: 1
-
 backend:
+  replicaCount: 1
   image:
     repository: taskboard-backend
     tag: local
@@ -19,3 +18,11 @@ postgresql:
     tag: 17-alpine
   storage:
     size: 1Gi
+targetGroupBinding:
+  enabled: false
+  targetGroupARN: ""
+secrets:
+  mode: local
+  external:
+    secretName: taskboard/prod/db-password
+    region: eu-west-1
