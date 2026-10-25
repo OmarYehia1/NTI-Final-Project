@@ -36,26 +36,6 @@ provider "helm" {
   }
 }
 
-
-resource "aws_eks_access_entry" "local_admin" {
-  cluster_name  = "taskboard-prod"
-  principal_arn = "arn:aws:iam::679965617139:user/omar"
-  type          = "STANDARD"
-  depends_on    = [module.eks]
-}
-
-resource "aws_eks_access_policy_association" "local_admin_policy" {
-  cluster_name  = "taskboard-prod"
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = "arn:aws:iam::679965617139:user/omar"
-
-  access_scope {
-    type = "cluster"
-  }
-
-  depends_on = [aws_eks_access_entry.local_admin]
-}
-
 # Allow the load balancer to reach the backend pods on port 8000
 resource "aws_security_group_rule" "alb_to_pods" {
   type                     = "ingress"
