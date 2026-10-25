@@ -36,18 +36,7 @@ provider "helm" {
   }
 }
 
-module "network" {
-  source      = "../../bootstrap/modules/network"
-  vpc_cidr    = "10.0.0.0/16"
-  environment = "prod"
-}
 
-module "eks" {
-  source       = "../../bootstrap/modules/eks"
-  cluster_name = "taskboard-prod"
-  vpc_id       = module.network.vpc_id
-  subnet_ids   = module.network.private_subnet_ids
-}
 resource "aws_eks_access_entry" "local_admin" {
   cluster_name  = "taskboard-prod"
   principal_arn = "arn:aws:iam::679965617139:user/omar"
@@ -83,8 +72,36 @@ resource "random_password" "origin_verify" {
   length  = 32
   special = false
 }
+# The database password: random, never written by hand
+resource "random_password" "db" {
+  length  = 24
+  special = false
+}
+
+# Where it is stored in AWS
+resource "aws_secretsmanager_secret" "db" {
+  name                    = "taskboard/prod/db-password"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "db" {
+  secret_id     = aws_secretsmanager_secret.db.id
+  secret_string = random_password.db.result
+}
 
 
+module "network" {
+  source      = "../../bootstrap/modules/network"
+  vpc_cidr    = "10.0.0.0/16"
+  environment = "prod"
+}
+
+module "eks" {
+  source       = "../../bootstrap/modules/eks"
+  cluster_name = "taskboard-prod"
+  vpc_id       = module.network.vpc_id
+  subnet_ids   = module.network.private_subnet_ids
+}
 
 module "staticsite" {
   source        = "../../bootstrap/modules/staticsite"
