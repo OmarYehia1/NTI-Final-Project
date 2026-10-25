@@ -1,0 +1,68 @@
+name: Post-build scan
+description: Scan the built image (or a build folder) and keep the reports
+
+inputs:
+  scan-type:
+    description: "image or fs"
+    required: true
+  target:
+    description: Image name (for image) or folder (for fs)
+    required: true
+  severity:
+    required: false
+    default: CRITICAL
+  report-name:
+    required: false
+    default: post-build-scan-report
+
+runs:
+  using: composite
+  steps:
+    - name: Trivy (image)
+      if: inputs.scan-type == 'image'
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: image
+        image-ref: ${{ inputs.target }}
+        severity: ${{ inputs.severity }}
+        ignore-unfixed: true
+        exit-code: "1"
+        format: table
+        output: trivy-post-report.txt
+
+    - name: Trivy (folder)
+      if: inputs.scan-type == 'fs'
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: fs
+        scan-ref: ${{ inputs.target }}
+        severity: ${{ inputs.severity }}
+        exit-code: "1"
+        format: table
+        output: trivy-post-report.txt
+
+    - name: Show report
+      if: always()
+      shell: bash
+      run: cat trivy-post-report.txt || true
+
+    # SBOM: the full ingredient list of the image, kept with each build
+    - name: SBOM (CycloneDX)
+      if: always() && inputs.scan-type == 'image'
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: image
+        image-ref: ${{ inputs.target }}
+        format: cyclonedx
+        output: sbom.cdx.json
+        exit-code: "0"
+
+    - name: Upload reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.report-name }}
+        path: |
+          trivy-post-report.txt
+          sbom.cdx.json
+        if-no-files-found: ignore

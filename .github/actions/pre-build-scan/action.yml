@@ -1,0 +1,79 @@
+name: Pre-build scan
+description: Secrets, dependencies, misconfigurations and code quality, before building
+
+inputs:
+  sonar-token:
+    description: SonarQube Cloud token (leave empty to skip the code quality scan)
+    required: false
+    default: ""
+  sonar-host-url:
+    required: false
+    default: https://sonarcloud.io
+  sonar-organization:
+    required: false
+    default: ""
+  sonar-project-key:
+    required: false
+    default: ""
+  sonar-project-dir:
+    required: false
+    default: "."
+  report-name:
+    required: false
+    default: pre-build-scan-report
+
+runs:
+  using: composite
+  steps:
+    # 1. Secrets in the commits (Gitleaks)
+    - name: Gitleaks
+      uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    # 2. Secrets in the commits (TruffleHog), a second opinion
+    - name: TruffleHog
+      uses: trufflesecurity/trufflehog@e76dff8a7e57d6df0c60ad8cbf5d5cba505a8fc9 # v3.99.2
+      with:
+        extra_args: --results=verified,unknown
+
+    # 3. Vulnerable libraries, secrets and bad settings in the files
+    - name: Trivy (files)
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: fs
+        scan-ref: .
+        scanners: vuln,secret,misconfig
+        severity: HIGH,CRITICAL
+        exit-code: "1"
+        format: table
+        output: trivy-fs-report.txt
+
+    # Show the report in the log (runs even if the scan failed)
+    - name: Show Trivy report
+      if: always()
+      shell: bash
+      run: cat trivy-fs-report.txt || true
+
+    # 4. Code quality gate (SonarQube Cloud)
+    - name: SonarQube Cloud
+      if: inputs.sonar-token != ''
+      uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5.3.2
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+        SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
+      with:
+        projectBaseDir: ${{ inputs.sonar-project-dir }}
+        args: >
+          -Dsonar.organization=${{ inputs.sonar-organization }}
+          -Dsonar.projectKey=${{ inputs.sonar-project-key }}
+          -Dsonar.qualitygate.wait=true
+
+    # Keep the reports, even when a scan failed
+    - name: Upload reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.report-name }}
+        path: trivy-fs-report.txt
+        if-no-files-found: ignore
