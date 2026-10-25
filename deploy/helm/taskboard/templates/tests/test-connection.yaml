@@ -5,9 +5,17 @@ metadata:
   annotations:
     "helm.sh/hook": test
 spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
   containers:
     - name: wget
       image: busybox
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
       command: ['wget']
-      args: ['http://backend:8000/api/health']
+      args: ['-qO-', 'http://backend:8000/api/health']
   restartPolicy: Never

@@ -21,6 +21,7 @@ resource "aws_lb" "main" {
   name               = "taskboard-backend-alb"
   internal           = false
   load_balancer_type = "application"
+  drop_invalid_header_fields = true
   security_groups    = [aws_security_group.alb.id]
   subnets            = var.subnet_ids
 }
@@ -33,7 +34,7 @@ resource "aws_lb_target_group" "backend" {
   target_type = "ip"
 
   health_check {
-    path = "/health"
+    path = "/api/health/ready"
   }
 }
 

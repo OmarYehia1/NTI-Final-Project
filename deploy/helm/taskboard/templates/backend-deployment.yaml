@@ -18,6 +18,8 @@ spec:
       initContainers:
         - name: wait-for-db
           image: postgres:17-alpine
+          securityContext:
+            readOnlyRootFilesystem: true
           command: ['sh', '-c', 'until pg_isready -h db -p 5432 -U taskboard; do sleep 2; done']
       containers:
         - name: backend

@@ -18,14 +18,24 @@ resource "aws_iam_role_policy_attachment" "cluster_amazon_eks_cluster_policy" {
   role       = aws_iam_role.cluster.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
+resource "aws_kms_key" "eks" {
+  enable_key_rotation = true
+}
 
 # EKS Cluster
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
   role_arn = aws_iam_role.cluster.arn
+    encryption_config {
+    resources = ["secrets"]
+    provider {
+      key_arn = aws_kms_key.eks.arn
+    }
+  }
 
   vpc_config {
     subnet_ids = var.subnet_ids
+    endpoint_public_access  = true
   }
 
   depends_on = [aws_iam_role_policy_attachment.cluster_amazon_eks_cluster_policy]

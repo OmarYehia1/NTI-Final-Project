@@ -1,0 +1,14 @@
+# ALB listener is HTTP: CloudFront connects to the ALB over HTTP. HTTPS needs a custom domain (stretch goal). Access is limited by security group and secret header.
+AWS-0054
+
+# ALB egress: low risk, the ALB only forwards to the backend pods. Can be restricted later.
+AWS-0104
+
+# EKS public endpoint: needed for kubectl, Terraform and GitHub Actions without a VPN. Access is protected by IAM. A real company would use a private endpoint.
+AWS-0040
+
+# ALB is internet-facing: CloudFront reaches it over the internet. It only accepts the secret header and (later) CloudFront IPs. A real company would use CloudFront VPC origins (stretch goal) to make it internal.
+AWS-0053
+
+# EKS API open to 0.0.0.0/0: GitHub Actions runners have changing IPs and need to reach the cluster. Access is still protected by IAM authentication. A real company would restrict it to known IPs or use a private endpoint with a VPN.
+AWS-0041
