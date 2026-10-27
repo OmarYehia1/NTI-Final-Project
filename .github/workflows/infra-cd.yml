@@ -1,65 +1,83 @@
-name: CD - Terraform & Helm Validation
+name: Infrastructure CI/CD
 
 on:
-  push:
-    branches: [ "main" ]
+  pull_request:
+    branches: [main]
     paths:
       - 'infra/**'
-      - 'deploy/**'
       - '.github/workflows/infra-cd.yml'
+#  push:
+ #   branches: [main]
+  #  paths:
+   #   - 'infra/**'
+    #  - '.github/workflows/infra-cd.yml'
   workflow_dispatch:
     inputs:
-      apply_terraform:
-        description: 'Run terraform apply on prod environment'
-        required: false
-        default: 'false'
+      action:
+        description: 'Terraform Action to execute'
+        required: true
+        default: 'plan'
         type: choice
         options:
-          - 'false'
-          - 'true'
+          - plan
+          - apply
+          - destroy
 
 permissions:
-  id-token: write
   contents: read
 
-env:
-  AWS_REGION: eu-west-1
-
 jobs:
-  validate-infra-and-helm:
-    name: Validate Terraform & Helm Charts
+  terraform:
+    name: Terraform
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/environments/prod
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
 
-      - name: Terraform Format & Validate (Prod)
-        working-directory: infra/environments/prod
-        run: |
-          terraform init -backend=false
-          terraform validate
-
-      - name: Setup Helm
-        uses: azure/setup-helm@v4
-
-      - name: Lint & Template Helm Chart
-        run: |
-          helm lint ./deploy/helm/taskboard -f ./deploy/helm/taskboard/values-prod.yaml
-          helm template taskboard ./deploy/helm/taskboard -f ./deploy/helm/taskboard/values-prod.yaml > /dev/null
-
-      - name: Configure AWS Credentials (for Plan/Apply)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
 
-      - name: Terraform Plan & Apply (Manual Trigger)
-        if: github.event_name == 'workflow_dispatch' && inputs.apply_terraform == 'true'
-        working-directory: infra/environments/prod
-        run: |
-          terraform init
-          terraform apply -auto-approve
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive ../../
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Triggered on Pull Requests: Generates plan only
+      - name: Terraform Plan (PR)
+        if: github.event_name == 'pull_request'
+        run: terraform plan -no-color
+
+      # Manual workflow triggers (plan / apply / destroy)
+      - name: Terraform Manual Plan
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'plan'
+        run: terraform plan
+
+      - name: Terraform Manual Apply
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+        run: terraform apply -auto-approve
+
+      - name: Terraform Manual Destroy
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+
+      # Automatic apply on push to main (if not triggered via workflow_dispatch)
+      - name: Terraform Auto Apply (Push to Main)
+        if: github.event_name == 'push'
+        run: terraform apply -auto-approve
