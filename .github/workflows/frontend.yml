@@ -48,7 +48,7 @@ jobs:
         run: npm run test:coverage --if-present
 
       - name: Run Pre-Scan Composite Action
-        uses: ./.github/actions/pre-scan
+        uses: ./.github/actions/pre-build-scan
 
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v5
@@ -93,7 +93,7 @@ jobs:
             ./app/frontend
 
       - name: Run Post-Scan Composite Action
-        uses: ./.github/actions/post-scan
+        uses: ./.github/actions/post-build-scan
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/taskboard-frontend:${{ github.sha }}
 
