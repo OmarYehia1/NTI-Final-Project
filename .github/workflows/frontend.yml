@@ -1,102 +1,68 @@
-name: Frontend CI/CD
+name: Frontend
 
 on:
+  pull_request:
+    paths:
+      - "app/frontend/**"
+      - ".github/actions/**"
+      - ".github/workflows/frontend.yml"
   push:
     branches: [main]
     paths:
-      - 'app/frontend/**'
-      - '.github/workflows/frontend.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'app/frontend/**'
-      - '.github/workflows/frontend.yml'
-  workflow_dispatch:
+      - "app/frontend/**"
+      - ".github/actions/**"
+      - ".github/workflows/frontend.yml"
 
 permissions:
-  id-token: write
   contents: read
+  pull-requests: read
 
 jobs:
-  test-and-scan:
-    name: Test & SonarQube Scan
+  build-and-scan:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: app/frontend
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # the secret scanners read the commit history
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      # 1. Scan the files and secrets, and run the code quality check
+      - name: Pre-build scan
+        uses: ./.github/actions/pre-build-scan
         with:
-          node-version: 18
-          cache: 'npm'
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
+          sonar-host-url: ${{ vars.SONAR_HOST_URL }}
+          sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
+          sonar-project-key: omaryehia1_taskboard-frontend
+          sonar-project-dir: app/frontend
+          report-name: frontend-pre-build-report
+
+      # 2. Build the website
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
           cache-dependency-path: app/frontend/package-lock.json
 
       - name: Install dependencies
+        working-directory: app/frontend
         run: npm ci
 
-      - name: Run linter
-        run: npm run lint --if-present
+      - name: Lint
+        working-directory: app/frontend
+        run: npm run lint
 
-      - name: Run tests with coverage
-        run: npm run test:coverage --if-present
+      - name: Type check
+        working-directory: app/frontend
+        run: npx tsc --noEmit
 
-      - name: Run Pre-Scan Composite Action
-        uses: ./.github/actions/pre-build-scan
+      - name: Build
+        working-directory: app/frontend
+        run: npm run build
 
-      - name: SonarQube Cloud Scan
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: app/frontend
-          args: >
-            -Dsonar.organization=omaryehia1
-            -Dsonar.projectKey=omaryehia1_taskboard-frontend
-            -Dsonar.sources=src
-            -Dsonar.tests=src
-            -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*.test.ts,**/*.test.tsx,**/*.spec.js,**/*.spec.jsx
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-
-  build-and-push:
-    name: Build, Container Scan & ECR Push
-    needs: test-and-scan
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Log in to AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Log in to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build Docker Image
-        run: |
-          docker build \
-            -t ${{ steps.login-ecr.outputs.registry }}/taskboard-frontend:${{ github.sha }} \
-            -t ${{ steps.login-ecr.outputs.registry }}/taskboard-frontend:latest \
-            ./app/frontend
-
-      - name: Run Post-Scan Composite Action
+      # 3. Scan the built website (the out/ folder)
+      - name: Post-build scan
         uses: ./.github/actions/post-build-scan
         with:
-          image-ref: ${{ steps.login-ecr.outputs.registry }}/taskboard-frontend:${{ github.sha }}
-
-      - name: Push Docker Image to ECR
-        run: |
-          docker push ${{ steps.login-ecr.outputs.registry }}/taskboard-frontend:${{ github.sha }}
-          docker push ${{ steps.login-ecr.outputs.registry }}/taskboard-frontend:latest
+          scan-type: fs
+          target: app/frontend/out
+          report-name: frontend-post-build-report
