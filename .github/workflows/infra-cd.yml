@@ -24,6 +24,7 @@ on:
           - destroy
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
@@ -43,12 +44,11 @@ jobs:
         with:
           terraform_version: 1.9.0
 
-      - name: Configure AWS Credentials
+      - name: Log in to AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-1
+          role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive ../../
