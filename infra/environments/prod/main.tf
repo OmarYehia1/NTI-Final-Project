@@ -170,10 +170,6 @@ module "github_deploy_role" {
   })
 }
 
-import {
-  to = module.ecr.aws_ecr_repository.backend
-  id = "taskboard-backend"
-}
 
 
 output "github_deploy_role_arn" {
