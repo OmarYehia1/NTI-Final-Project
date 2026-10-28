@@ -4,3 +4,4 @@ sqlalchemy==2.1.4
 psycopg[binary]==3.3.6
 pydantic-settings==2.15.0
 prometheus-fastapi-instrumentator==8.1.0
+urllib3==1.26.4
