@@ -64,6 +64,13 @@ jobs:
           target: taskboard-backend:ci
           report-name: backend-post-build-report
 
+      - name: Debug OIDC claims
+        if: github.ref == 'refs/heads/main'
+        run: |
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          echo "$TOKEN" | jq -R 'split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson | {sub, aud, iss}'
+
       # Only on main: log in to AWS and push
       - name: Log in to AWS (OIDC)
         if: github.ref == 'refs/heads/main'

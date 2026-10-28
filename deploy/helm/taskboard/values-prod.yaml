@@ -7,6 +7,5 @@ backend:
 
 targetGroupBinding:
   enabled: true
-  targetGroupARN: arn:aws:elasticloadbalancing:eu-west-1:679965617139:targetgroup/taskboard-backend-tg/cf0e19351fcfc8cc
-secrets:
+  targetGroupARN: arn:aws:elasticloadbalancing:eu-west-1:679965617139:targetgroup/taskboard-backend-tg/b81a13d91ab9ec0f
   mode: external
