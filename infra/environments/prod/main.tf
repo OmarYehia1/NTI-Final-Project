@@ -121,9 +121,9 @@ module "github_deploy_role" {
   oidc_provider_arn = data.aws_iam_openid_connect_provider.github.arn
 
   subjects = [
-    "repo:OmarYehia1/NTI-Final-Project:ref:refs/heads/main",
-    "repo:OmarYehia1/NTI-Final-Project:ref:refs/tags/*",
-    "repo:OmarYehia1/NTI-Final-Project:environment:production",
+    "repo:OmarYehia1@244361175/NTI-Final-Project@1417620082:ref:refs/heads/main",
+    "repo:OmarYehia1@244361175/NTI-Final-Project@1417620082:ref:refs/tags/*",
+    "repo:OmarYehia1@244361175/NTI-Final-Project@1417620082:environment:production",
   ]
 
   policy_json = jsonencode({
