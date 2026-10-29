@@ -209,7 +209,7 @@ Screenshots are in `docs/evidence/`.
   IPs. Access is protected by IAM. A real company would use a private endpoint with a VPN or fixed runners.
 - **One cluster admin.** Only the user who created the cluster has admin rights. Switching the cluster to access entries
   would have forced a rebuild. A real company would give each person or role only the permissions they need.
-- **Small nodes.** The cluster uses 2 `t3.small` nodes (the account is on a free trial). A `t3.small` holds only 11 pods, which
+- **Small nodes.** The cluster uses 3 `t3.small` nodes (the account is on a free trial). A `t3.small` holds only 11 pods, which
   is why Argo CD is installed without the dex, notifications and ApplicationSet components.
 - **Accepted scanner findings.** The ALB being internet-facing, the HTTP listener, the open ALB egress and the public EKS
   endpoint are listed in `.trivyignore` with reasons.
