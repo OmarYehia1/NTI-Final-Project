@@ -4,3 +4,4 @@ backend:
     repository: taskboard-backend
     tag: local
     pullPolicy: Never
+environment: local

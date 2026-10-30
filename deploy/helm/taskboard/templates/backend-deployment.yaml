@@ -38,6 +38,10 @@ spec:
               name: unused
             - containerPort: 8000
           env:
+            - name: APP_VERSION
+              value: {{ .Values.backend.image.tag | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.environment | default "local" | quote }}
             - name: DB_HOST
               value: "db"
             - name: DB_PORT
