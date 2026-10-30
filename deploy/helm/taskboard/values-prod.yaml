@@ -2,7 +2,7 @@ backend:
   replicaCount: 2
   image:
     repository: 679965617139.dkr.ecr.eu-west-1.amazonaws.com/taskboard-backend
-    tag: v1.1.0
+    tag: v1.0.0
     pullPolicy: IfNotPresent
 targetGroupBinding:
   enabled: true
