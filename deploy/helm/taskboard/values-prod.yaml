@@ -9,3 +9,5 @@ targetGroupBinding:
   targetGroupARN: arn:aws:elasticloadbalancing:eu-west-1:679965617139:targetgroup/taskboard-backend-tg/1ec50d6afe2a9bc4
 secrets:
   mode: external
+
+environment: production
