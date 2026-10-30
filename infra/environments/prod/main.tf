@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     helm = {
@@ -15,6 +15,7 @@ terraform {
     bucket = "taskboard-tf-state-679965617139"
     key    = "prod/terraform.tfstate"
     region = "eu-west-1"
+    use_lockfile = true
   }
 }
 

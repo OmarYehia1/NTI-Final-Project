@@ -2,10 +2,6 @@ name: Frontend
 
 on:
   pull_request:
-    paths:
-      - "app/frontend/**"
-      - ".github/actions/**"
-      - ".github/workflows/frontend.yml"
   push:
     branches: [main]
     paths:

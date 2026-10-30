@@ -6,43 +6,53 @@ on:
     paths:
       - 'infra/**'
       - '.github/workflows/infra-cd.yml'
-#  push:
- #   branches: [main]
-  #  paths:
-   #   - 'infra/**'
-    #  - '.github/workflows/infra-cd.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-cd.yml'
   workflow_dispatch:
     inputs:
-      action:
-        description: 'Terraform Action to execute'
-        required: true
-        default: 'plan'
-        type: choice
-        options:
-          - plan
-          - apply
-          - destroy
+      apply:
+        description: 'Also run apply after the plan (needs approval)'
+        type: boolean
+        default: false
 
 permissions:
-  id-token: write
+  id-token: write # log in to AWS with OIDC
   contents: read
 
+# Two Terraform runs must never touch the state at the same time
+concurrency:
+  group: terraform-prod
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+
 jobs:
-  terraform:
-    name: Terraform
+  # Runs on pull requests, pushes to main and manual runs. Changes nothing in AWS.
+  plan:
+    name: Scan, validate and plan
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: infra/environments/prod
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v4
         with:
-          terraform_version: 1.9.0
+          fetch-depth: 0 # the secret scanners read the commit history
+
+      # 1. Security scan of the Terraform code (Trivy) and secrets.
+      #    The SonarQube step inside this action is skipped because no token is given.
+      - name: Security scan
+        uses: ./.github/actions/pre-build-scan
+        with:
+          report-name: infra-scan-report
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
 
       - name: Log in to AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -50,34 +60,53 @@ jobs:
           role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Terraform Format Check
+      - name: Format check
         run: terraform fmt -check -recursive ../../
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Init
+        run: terraform init -input=false
 
-      - name: Terraform Validate
+      - name: Validate
         run: terraform validate
 
-      # Triggered on Pull Requests: Generates plan only
-      - name: Terraform Plan (PR)
-        if: github.event_name == 'pull_request'
-        run: terraform plan -no-color
+      - name: Plan
+        shell: bash
+        run: |
+          terraform plan -no-color -input=false | tee plan.txt
+          {
+            echo '## Terraform plan'
+            echo '```'
+            tail -n 60 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      # Manual workflow triggers (plan / apply / destroy)
-      - name: Terraform Manual Plan
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'plan'
-        run: terraform plan
+  # Only on main. The job waits until you approve it in the "infrastructure" environment.
+  apply:
+    name: Apply (needs approval)
+    needs: plan
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.apply))
+    runs-on: ubuntu-latest
+    environment: infrastructure
+    defaults:
+      run:
+        working-directory: infra/environments/prod
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Terraform Manual Apply
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
-        run: terraform apply -auto-approve
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
 
-      - name: Terraform Manual Destroy
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
-        run: terraform destroy -auto-approve
+      - name: Log in to AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-      # Automatic apply on push to main (if not triggered via workflow_dispatch)
-      - name: Terraform Auto Apply (Push to Main)
-        if: github.event_name == 'push'
-        run: terraform apply -auto-approve
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Apply
+        run: terraform apply -auto-approve -input=false
