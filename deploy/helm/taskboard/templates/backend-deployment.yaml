@@ -55,10 +55,6 @@ spec:
                 secretKeyRef:
                   name: taskboard-secret
                   key: DB_PASSWORD
-            - name: APP_VERSION
-              value: "v1.0.0"
-            - name: ENVIRONMENT
-              value: "local"
           readinessProbe:
             httpGet:
               path: /api/health/ready
