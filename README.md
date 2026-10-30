@@ -148,7 +148,7 @@ Requirements: an AWS account with an IAM user (not root), `aws` CLI v2, `terrafo
    ```
 8. **Check:** the application is `Synced` and `Healthy`, the PVC is `Bound` on a gp3 volume, the ALB target group has
    healthy targets, and the CloudFront URL (`terraform output app_url`) shows the app.
-
+9. The pipelines that log in to AWS (backend push, release, infra apply) fail while the infrastructure is destroyed, because the OIDC roles are created by Terraform. This is expected and saves cost between sessions.
 ## Release process
 
 1. Publish a GitHub Release (for example `v1.0.0`).
