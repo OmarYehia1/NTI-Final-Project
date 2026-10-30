@@ -2,10 +2,10 @@ backend:
   replicaCount: 2
   image:
     repository: 679965617139.dkr.ecr.eu-west-1.amazonaws.com/taskboard-backend
-    tag: sha-41d418a630d519a0db865c7e9df8b20e0da45da1
+    tag: sha-d7b0fdafdc0857e5ded38613ea9554be69cffbfa
     pullPolicy: IfNotPresent
 
 targetGroupBinding:
   enabled: true
-  targetGroupARN: arn:aws:elasticloadbalancing:eu-west-1:679965617139:targetgroup/taskboard-backend-tg/b81a13d91ab9ec0f
+  targetGroupARN: arn:aws:elasticloadbalancing:eu-west-1:679965617139:targetgroup/taskboard-backend-tg/1ec50d6afe2a9bc4
   mode: external
