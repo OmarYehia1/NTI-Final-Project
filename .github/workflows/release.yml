@@ -1,52 +1,117 @@
 name: Release
 
+# Starts only when you publish a GitHub Release (for example v1.0.0)
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-  workflow_dispatch:
-  
   release:
     types: [published]
 
 permissions:
-  contents: write
+  id-token: write # log in to AWS with OIDC
+  contents: write # push the branch for the GitOps pull request
+  pull-requests: write # open the GitOps pull request
+
+env:
+  TAG: ${{ github.event.release.tag_name }}
 
 jobs:
-  create-release:
-    name: Tag & Create GitHub Release
+  # 1. Promote the image: add the release tag to the image built from this commit.
+  #    The image is NOT rebuilt.
+  promote-image:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Log in to AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          fetch-depth: 0
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Generate Semantic Version Tag
-        id: tagger
-        uses: anothrNick/github-tag-action@1.67.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WITH_V: true
-          DEFAULT_BUMP: patch
-
-      - name: Package Helm Chart
+      - name: Add the release tag to the image
         run: |
-          mkdir -p dist
-          helm package deploy/helm/taskboard \
-            --version ${{ steps.tagger.outputs.new_tag }} \
-            --app-version ${{ steps.tagger.outputs.new_tag }} \
-            --destination dist/
+          REPO=taskboard-backend
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name "$REPO" \
+            --image-ids imageTag=sha-${GITHUB_SHA} \
+            --query 'images[0].imageManifest' --output text)
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+          if [ -z "$MANIFEST" ] || [ "$MANIFEST" = "None" ]; then
+            echo "No image sha-${GITHUB_SHA} in ECR."
+            echo "Wait for the Backend workflow to finish on this commit, then publish the release again."
+            exit 1
+          fi
+
+          aws ecr put-image \
+            --repository-name "$REPO" \
+            --image-tag "$TAG" \
+            --image-manifest "$MANIFEST"
+
+  # 2. Open a pull request that changes the image tag in values-prod.yaml.
+  #    Merging it is the deployment approval: Argo CD sees the change and redeploys.
+  gitops-pr:
+    needs: promote-image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
-          tag_name: ${{ steps.tagger.outputs.new_tag }}
-          name: Release ${{ steps.tagger.outputs.new_tag }}
-          generate_release_notes: true
-          files: dist/*.tgz
+          ref: main
+
+      - name: Change the image tag in values-prod.yaml
+        run: yq -i '.backend.image.tag = strenv(TAG)' deploy/helm/taskboard/values-prod.yaml
+
+      - name: Open the pull request
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "release/${TAG}"
+          git add deploy/helm/taskboard/values-prod.yaml
+          git commit -m "Deploy backend ${TAG}"
+          git push origin "release/${TAG}"
+          gh pr create \
+            --base main \
+            --head "release/${TAG}" \
+            --title "Deploy backend ${TAG}" \
+            --body "Promotes the backend image to ${TAG}. Merging this pull request deploys it through Argo CD."
+
+  # 3. Build the frontend with the release version, upload it to S3, clear the CloudFront cache.
+  #    This job uses the "production" environment, so it waits for your approval
+  #    and every release shows up on the repository's Deployments page.
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Build the frontend
+        working-directory: app/frontend
+        env:
+          NEXT_PUBLIC_APP_VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          npm ci
+          npm run build
+
+      # Pages: never cached. Hashed assets in _next/static: cached for one year.
+      - name: Upload to S3
+        run: |
+          aws s3 sync app/frontend/out "s3://${{ vars.FRONTEND_BUCKET }}" \
+            --delete --exclude "_next/static/*" --cache-control "no-cache"
+          aws s3 sync app/frontend/out/_next/static "s3://${{ vars.FRONTEND_BUCKET }}/_next/static" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Clear the CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"
