@@ -12,9 +12,9 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "taskboard-tf-state-679965617139"
-    key    = "prod/terraform.tfstate"
-    region = "eu-west-1"
+    bucket       = "taskboard-tf-state-679965617139"
+    key          = "prod/terraform.tfstate"
+    region       = "eu-west-1"
     use_lockfile = true
   }
 }
