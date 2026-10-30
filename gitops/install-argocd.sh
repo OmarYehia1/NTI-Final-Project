@@ -9,3 +9,4 @@ helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace --wait -
   --set dex.enabled=false \
   --set notifications.enabled=false \
   --set applicationSet.enabled=false
+kubectl apply -f "$APP_FILE"
